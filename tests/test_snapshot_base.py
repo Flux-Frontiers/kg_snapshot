@@ -307,6 +307,114 @@ def test_diff_missing_snapshot(mgr: SnapshotManager) -> None:
 
 
 # ---------------------------------------------------------------------------
+# SnapshotManager — dedup / refresh-in-place behaviour
+# ---------------------------------------------------------------------------
+
+
+def test_save_identical_snapshot_refreshes_in_place(
+    mgr: SnapshotManager, graph_stats: dict, snap_dir: Path
+) -> None:
+    """Saving a second snapshot with identical version+metrics replaces the
+    latest entry in the manifest rather than appending a new one."""
+    with (
+        patch.object(SnapshotManager, "_get_current_branch", return_value="main"),
+        patch.object(SnapshotManager, "_get_current_tree_hash", return_value="hash001"),
+    ):
+        snap1 = mgr.capture(version="1.0.0", graph_stats_dict=graph_stats)
+    mgr.save_snapshot(snap1)
+
+    # Same version + metrics, different tree hash (e.g. whitespace-only commit)
+    with (
+        patch.object(SnapshotManager, "_get_current_branch", return_value="main"),
+        patch.object(SnapshotManager, "_get_current_tree_hash", return_value="hash002"),
+    ):
+        snap2 = mgr.capture(version="1.0.0", graph_stats_dict=graph_stats)
+    mgr.save_snapshot(snap2)
+
+    manifest = mgr.load_manifest()
+    assert len(manifest.snapshots) == 1, "identical snapshot must not grow history"
+    assert manifest.snapshots[0]["key"] == "hash002"
+    assert not (snap_dir / "hash001.json").exists(), "old file must be removed"
+    assert (snap_dir / "hash002.json").exists()
+
+
+def test_save_changed_metrics_appends_new_entry(mgr: SnapshotManager, snap_dir: Path) -> None:
+    """Saving a snapshot with different metrics creates a new history entry."""
+    stats_a = {"total_nodes": 100, "total_edges": 150}
+    stats_b = {"total_nodes": 110, "total_edges": 160}
+
+    with (
+        patch.object(SnapshotManager, "_get_current_branch", return_value="main"),
+        patch.object(SnapshotManager, "_get_current_tree_hash", return_value="hash001"),
+    ):
+        mgr.save_snapshot(mgr.capture(version="1.0.0", graph_stats_dict=stats_a))
+
+    with (
+        patch.object(SnapshotManager, "_get_current_branch", return_value="main"),
+        patch.object(SnapshotManager, "_get_current_tree_hash", return_value="hash002"),
+    ):
+        mgr.save_snapshot(mgr.capture(version="1.0.0", graph_stats_dict=stats_b))
+
+    manifest = mgr.load_manifest()
+    assert len(manifest.snapshots) == 2
+    assert (snap_dir / "hash001.json").exists()
+    assert (snap_dir / "hash002.json").exists()
+
+
+def test_save_force_always_appends(mgr: SnapshotManager, graph_stats: dict) -> None:
+    """force=True writes a new history entry even when nothing changed."""
+    with (
+        patch.object(SnapshotManager, "_get_current_branch", return_value="main"),
+        patch.object(SnapshotManager, "_get_current_tree_hash", return_value="hash001"),
+    ):
+        mgr.save_snapshot(mgr.capture(version="1.0.0", graph_stats_dict=graph_stats))
+
+    with (
+        patch.object(SnapshotManager, "_get_current_branch", return_value="main"),
+        patch.object(SnapshotManager, "_get_current_tree_hash", return_value="hash002"),
+    ):
+        mgr.save_snapshot(mgr.capture(version="1.0.0", graph_stats_dict=graph_stats), force=True)
+
+    assert len(mgr.load_manifest().snapshots) == 2
+
+
+def test_metrics_changed_override(mgr: SnapshotManager, snap_dir: Path) -> None:
+    """Subclass _metrics_changed override controls what counts as a real change."""
+
+    class ThresholdManager(SnapshotManager):
+        def _metrics_changed(self, new: dict, old: dict) -> bool:
+            # Only record if node count changes by more than 5
+            return abs(new.get("total_nodes", 0) - old.get("total_nodes", 0)) > 5
+
+    tmgr = ThresholdManager(snap_dir / "threshold", package_name="kg-snapshot")
+    base_stats = {"total_nodes": 100, "total_edges": 150}
+    small_change = {"total_nodes": 103, "total_edges": 153}  # delta=3, below threshold
+    big_change = {"total_nodes": 115, "total_edges": 165}  # delta=15, above threshold
+
+    with (
+        patch.object(ThresholdManager, "_get_current_branch", return_value="main"),
+        patch.object(ThresholdManager, "_get_current_tree_hash", return_value="hash001"),
+    ):
+        tmgr.save_snapshot(tmgr.capture(version="1.0.0", graph_stats_dict=base_stats))
+
+    with (
+        patch.object(ThresholdManager, "_get_current_branch", return_value="main"),
+        patch.object(ThresholdManager, "_get_current_tree_hash", return_value="hash002"),
+    ):
+        tmgr.save_snapshot(tmgr.capture(version="1.0.0", graph_stats_dict=small_change))
+
+    assert len(tmgr.load_manifest().snapshots) == 1, "small change must be suppressed"
+
+    with (
+        patch.object(ThresholdManager, "_get_current_branch", return_value="main"),
+        patch.object(ThresholdManager, "_get_current_tree_hash", return_value="hash003"),
+    ):
+        tmgr.save_snapshot(tmgr.capture(version="1.0.0", graph_stats_dict=big_change))
+
+    assert len(tmgr.load_manifest().snapshots) == 2, "big change must be recorded"
+
+
+# ---------------------------------------------------------------------------
 # SnapshotManager — git helpers (inherited by all subclasses)
 # ---------------------------------------------------------------------------
 

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-03
+
+### Added
+- `SnapshotManager._metrics_changed(new, old)` hook — subclasses can override to define what constitutes a meaningful metric change (default: full equality)
+- `save_snapshot(force=False)` dedup logic: if version and metrics are unchanged vs. the latest snapshot, the existing entry is refreshed in-place (tree hash, timestamp, branch updated; old JSON removed) instead of polluting history with a new entry
+- `pylint` pre-commit hook (`^src/` only, `--rcfile=pyproject.toml`)
+- Dev dependencies aligned with code_kg / doc_kg / kgrag: `pytest-cov`, `pre-commit`, `detect-secrets`, `pylint`, `pdoc`, `code-kg` (git), `doc-kg` (git)
+- 4 new tests covering the dedup behaviour: refresh-in-place, changed-metrics appends, `force=True` override, and `_metrics_changed` subclass hook (22 total, all passing)
+- `[tool.pylint.messages_control]` and `[tool.pytest.ini_options]` added to `pyproject.toml` to match sibling repos
+- `__version__ = "0.2.0"` added to `src/kg_snapshot/__init__.py`
+- `scripts/pre-commit-hook` — versioned KG-aware pre-commit hook (rebuilds CodeKG + DocKG indices, saves snapshots, then runs pre-commit framework checks)
+- `scripts/install-hooks.sh` — installs `scripts/pre-commit-hook` into `.git/hooks/pre-commit`; re-run after any `pre-commit install` overwrites it
+- `.gitignore` entries for `.codekg/` and `.dockg/` transient artifacts (lancedb, sqlite, models) mirroring code_kg; snapshots remain tracked
+
+### Fixed
+- `mypy` and `pytest` pre-commit hooks now invoke `.venv/bin/mypy` / `.venv/bin/pytest` directly, bypassing a Poetry env-detection issue on macOS where `poetry run` resolved to the system Python instead of the in-project `.venv`
+
 ## [0.1.0] - 2026-04-03
 
 ### Added

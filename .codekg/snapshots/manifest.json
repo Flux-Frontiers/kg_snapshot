@@ -1,0 +1,87 @@
+{
+  "format": "1.0",
+  "last_update": "2026-04-03T17:01:50.524783+00:00",
+  "snapshots": [
+    {
+      "key": "c27fd24bdcef666b2e660ca37ce73c0b8c7dac34",
+      "branch": "main",
+      "timestamp": "2026-04-03T17:00:19.136537+00:00",
+      "version": "0.11.0",
+      "file": "c27fd24bdcef666b2e660ca37ce73c0b8c7dac34.json",
+      "metrics": {
+        "total_nodes": 583,
+        "total_edges": 654,
+        "meaningful_nodes": 55,
+        "docstring_coverage": 0.6,
+        "node_counts": {
+          "class": 4,
+          "function": 26,
+          "method": 22,
+          "module": 3,
+          "symbol": 528
+        },
+        "edge_counts": {
+          "ATTR_ACCESS": 210,
+          "CALLS": 189,
+          "CONTAINS": 52,
+          "IMPORTS": 21,
+          "RESOLVES_TO": 182
+        },
+        "critical_issues": 2,
+        "complexity_median": 5,
+        "module_node_counts": {
+          "src/kg_snapshot/__init__.py": 3,
+          "src/kg_snapshot/snapshots.py": 252,
+          "tests/test_snapshot_base.py": 236
+        }
+      },
+      "deltas": {
+        "vs_previous": null,
+        "vs_baseline": null
+      }
+    },
+    {
+      "key": "70ab4ffb600a0dffb84a45a3ef4ea1e61e4e8591",
+      "branch": "main",
+      "timestamp": "2026-04-03T17:01:50.524393+00:00",
+      "version": "0.11.0",
+      "file": "70ab4ffb600a0dffb84a45a3ef4ea1e61e4e8591.json",
+      "metrics": {
+        "total_nodes": 583,
+        "total_edges": 654,
+        "meaningful_nodes": 55,
+        "docstring_coverage": 0.6,
+        "node_counts": {
+          "class": 4,
+          "function": 26,
+          "method": 22,
+          "module": 3,
+          "symbol": 528
+        },
+        "edge_counts": {
+          "ATTR_ACCESS": 210,
+          "CALLS": 189,
+          "CONTAINS": 52,
+          "IMPORTS": 21,
+          "RESOLVES_TO": 182
+        },
+        "critical_issues": 2,
+        "complexity_median": 5,
+        "module_node_counts": {
+          "src/kg_snapshot/__init__.py": 3,
+          "src/kg_snapshot/snapshots.py": 252,
+          "tests/test_snapshot_base.py": 236
+        }
+      },
+      "deltas": {
+        "vs_previous": null,
+        "vs_baseline": {
+          "nodes": 0,
+          "edges": 0,
+          "coverage_delta": 0.0,
+          "critical_issues_delta": 0
+        }
+      }
+    }
+  ]
+}

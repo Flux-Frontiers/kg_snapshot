@@ -1,6 +1,6 @@
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![License: Elastic-2.0](https://img.shields.io/badge/License-Elastic%202.0-blue.svg)](https://www.elastic.co/licensing/elastic-license)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/Flux-Frontiers/kg_snapshot/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/Flux-Frontiers/kg_snapshot/releases)
 [![CI](https://github.com/Flux-Frontiers/kg_snapshot/actions/workflows/ci.yml/badge.svg)](https://github.com/Flux-Frontiers/kg_snapshot/actions/workflows/ci.yml)
 [![Poetry](https://img.shields.io/endpoint?url=https://python-poetry.org/badge/v0.json)](https://python-poetry.org/)
 
@@ -75,6 +75,28 @@ class MyKGSnapshotManager(SnapshotManager):
         base = super()._compute_delta_from_metrics(new_m, old_m)
         base["coverage_delta"] = new_m.get("coverage", 0) - old_m.get("coverage", 0)
         return base
+```
+
+### Dedup — no-op snapshot suppression
+
+`save_snapshot()` compares the incoming snapshot's `version` and `metrics` against
+the latest manifest entry.  If nothing changed, the existing entry is **refreshed
+in-place** (tree hash, timestamp, and branch updated; old JSON file replaced) rather
+than growing history with a no-op snapshot.
+
+Override `_metrics_changed` to define your own threshold:
+
+```python
+class ThresholdManager(SnapshotManager):
+    def _metrics_changed(self, new: dict, old: dict) -> bool:
+        # Only record if node count shifts by more than 5
+        return abs(new.get("total_nodes", 0) - old.get("total_nodes", 0)) > 5
+```
+
+Pass `force=True` to bypass dedup and always write a new history entry:
+
+```python
+mgr.save_snapshot(snapshot, force=True)
 ```
 
 ### Git helpers included
@@ -174,6 +196,23 @@ poetry install
 poetry run pytest tests/ -v
 ```
 
+### Installing the KG-aware pre-commit hook
+
+The standard `pre-commit install` stub is replaced by a wrapper that rebuilds
+CodeKG and DocKG indices, saves snapshots, and then runs the pre-commit
+framework checks — mirroring the hook used in `code-kg` and `doc-kg`:
+
+```bash
+bash scripts/install-hooks.sh
+```
+
+Re-run after any `pre-commit install` that overwrites the stub.  Skip the KG
+rebuild for a quick fixup commit with:
+
+```bash
+CODEKG_SKIP_SNAPSHOT=1 git commit ...
+```
+
 ### Running the full KGRAG test suite
 
 The `scripts/run_tests.sh` script runs all snapshot-related tests across every domain package
@@ -185,7 +224,7 @@ bash scripts/run_tests.sh
 
 | Phase | What it does |
 |-------|-------------|
-| **1** | `kg_snapshot` base tests — 18 tests, no domain deps required |
+| **1** | `kg_snapshot` base tests — 22 tests, no domain deps required |
 | **2** | Domain subclass tests in each repo's own venv |
 | **3** | Import chain smoke-test per repo |
 | **4** | Load real on-disk snapshots from built KG instances |
@@ -204,9 +243,11 @@ kg_snapshot/
 │       ├── __init__.py       # Public API: Snapshot, SnapshotManifest, SnapshotManager
 │       └── snapshots.py      # Full implementation (stdlib only)
 ├── tests/
-│   └── test_snapshot_base.py # 18 tests — round-trip, deltas, manifest, git helpers
+│   └── test_snapshot_base.py # 22 tests — round-trip, deltas, dedup, manifest, git helpers
 └── scripts/
-    └── run_tests.sh          # Full KGRAG-wide snapshot test runner
+    ├── run_tests.sh          # Full KGRAG-wide snapshot test runner
+    ├── install-hooks.sh      # Installs KG-aware pre-commit hook
+    └── pre-commit-hook       # Versioned hook: rebuild CodeKG+DocKG, snapshot, pre-commit
 ```
 
 ---

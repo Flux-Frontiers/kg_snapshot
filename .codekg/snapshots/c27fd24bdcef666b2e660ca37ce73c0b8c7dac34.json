@@ -1,0 +1,102 @@
+{
+  "key": "c27fd24bdcef666b2e660ca37ce73c0b8c7dac34",
+  "branch": "main",
+  "timestamp": "2026-04-03T17:00:19.136537+00:00",
+  "version": "0.11.0",
+  "metrics": {
+    "db_path": ".codekg/graph.sqlite",
+    "total_nodes": 583,
+    "meaningful_nodes": 55,
+    "total_edges": 654,
+    "node_counts": {
+      "class": 4,
+      "function": 26,
+      "method": 22,
+      "module": 3,
+      "symbol": 528
+    },
+    "edge_counts": {
+      "ATTR_ACCESS": 210,
+      "CALLS": 189,
+      "CONTAINS": 52,
+      "IMPORTS": 21,
+      "RESOLVES_TO": 182
+    },
+    "docstring_coverage": 0.6,
+    "critical_issues": 2,
+    "complexity_median": 5,
+    "module_node_counts": {
+      "src/kg_snapshot/__init__.py": 3,
+      "src/kg_snapshot/snapshots.py": 252,
+      "tests/test_snapshot_base.py": 236
+    }
+  },
+  "hotspots": [
+    {
+      "name": "m:src/kg_snapshot/snapshots.py:SnapshotManager.capture",
+      "callers": 15,
+      "callees": 11,
+      "risk_level": "low"
+    },
+    {
+      "name": "m:src/kg_snapshot/snapshots.py:SnapshotManager.save_snapshot",
+      "callers": 13,
+      "callees": 22,
+      "risk_level": "low"
+    },
+    {
+      "name": "m:src/kg_snapshot/snapshots.py:SnapshotManager.load_manifest",
+      "callers": 9,
+      "callees": 6,
+      "risk_level": "low"
+    },
+    {
+      "name": "m:src/kg_snapshot/snapshots.py:SnapshotManager.load_snapshot",
+      "callers": 7,
+      "callees": 16,
+      "risk_level": "low"
+    },
+    {
+      "name": "cls:src/kg_snapshot/snapshots.py:Snapshot",
+      "callers": 5,
+      "callees": 0,
+      "risk_level": "low"
+    },
+    {
+      "name": "m:src/kg_snapshot/snapshots.py:SnapshotManifest.from_dict",
+      "callers": 5,
+      "callees": 2,
+      "risk_level": "low"
+    },
+    {
+      "name": "m:src/kg_snapshot/snapshots.py:Snapshot.from_dict",
+      "callers": 5,
+      "callees": 4,
+      "risk_level": "low"
+    },
+    {
+      "name": "m:src/kg_snapshot/snapshots.py:Snapshot.to_dict",
+      "callers": 5,
+      "callees": 0,
+      "risk_level": "low"
+    },
+    {
+      "name": "m:src/kg_snapshot/snapshots.py:SnapshotManifest.to_dict",
+      "callers": 5,
+      "callees": 0,
+      "risk_level": "low"
+    },
+    {
+      "name": "cls:src/kg_snapshot/snapshots.py:SnapshotManifest",
+      "callers": 3,
+      "callees": 0,
+      "risk_level": "low"
+    }
+  ],
+  "issues": [
+    "[WARN] Moderate docstring coverage (60.0%) \u2014 semantic retrieval quality is degraded for undocumented nodes; BM25 is as effective as embeddings without docstrings",
+    "[WARN] 13 orphaned functions found (`test_snapshot_from_dict_legacy_tree_hash_key`, `test_git_helpers_return_strings`, `test_diff_missing_snapshot`, `test_load_missing_returns_none`, `test_save_rejects_zero_nodes`, `test_load_latest`, `test_save_and_load_round_trip`, `test_snapshot_round_trip`, `mgr`, `test_capture_extra_metrics_merged`, `test_manifest_round_trip`, `test_diff_snapshots`, `test_public_api_complete`) -- consider archiving or documenting"
+  ],
+  "vs_previous": null,
+  "vs_baseline": null
+}

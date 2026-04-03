@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# CodeKG + DocKG pre-commit hook — keeps local indices in sync and captures
+# metrics snapshots BEFORE quality checks run.
+# Installed by: scripts/install-hooks.sh
+# Skip with: CODEKG_SKIP_SNAPSHOT=1 git commit ...
+set -euo pipefail
+
+[ "${CODEKG_SKIP_SNAPSHOT:-0}" = "1" ] && exit 0
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+cd "$REPO_ROOT"
+
+# Capture the tree hash of the staged index NOW — before any tool modifies files.
+TREE_HASH=$(git write-tree)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# ---------------------------------------------------------------------------
+# CodeKG — rebuild + snapshot if present in this repo
+# ---------------------------------------------------------------------------
+if [ -d "$REPO_ROOT/.codekg" ]; then
+    "$REPO_ROOT/.venv/bin/codekg" build --repo "$REPO_ROOT" || exit 1
+    "$REPO_ROOT/.venv/bin/codekg" snapshot save \
+        --repo . \
+        --tree-hash "$TREE_HASH" \
+        --branch "$BRANCH" \
+      || { echo "[codekg] snapshot skipped (run 'codekg build' to initialize)" >&2; }
+    git add .codekg/snapshots/ 2>/dev/null || true
+fi
+
+# ---------------------------------------------------------------------------
+# DocKG — rebuild + snapshot if present in this repo
+# ---------------------------------------------------------------------------
+if [ -d "$REPO_ROOT/.dockg" ]; then
+    "$REPO_ROOT/.venv/bin/dockg" build || exit 1
+    "$REPO_ROOT/.venv/bin/dockg" snapshot save \
+        --repo . \
+        --tree-hash "$TREE_HASH" \
+        --branch "$BRANCH" \
+      || { echo "[dockg] snapshot skipped (run 'dockg build' to initialize)" >&2; }
+    git add .dockg/snapshots/ 2>/dev/null || true
+fi
+
+# ---------------------------------------------------------------------------
+# Run pre-commit framework checks AFTER all snapshots are captured and staged.
+# ---------------------------------------------------------------------------
+PRECOMMIT="$REPO_ROOT/.venv/bin/pre-commit"
+if [ -x "$PRECOMMIT" ]; then
+    "$PRECOMMIT" run || exit 1
+elif command -v pre-commit &>/dev/null; then
+    pre-commit run || exit 1
+fi
+
+exit 0

@@ -1,0 +1,122 @@
+{
+  "key": "70ab4ffb600a0dffb84a45a3ef4ea1e61e4e8591",
+  "branch": "main",
+  "timestamp": "2026-04-03T17:01:54.348241+00:00",
+  "version": "0.7.0",
+  "metrics": {
+    "db_path": "/Users/egs/repos/kg_snapshot/.dockg/graph.sqlite",
+    "total_nodes": 497,
+    "total_edges": 2420,
+    "node_counts": {
+      "chunk": 80,
+      "document": 5,
+      "entity": 118,
+      "keyword": 165,
+      "section": 56,
+      "topic": 73
+    },
+    "edge_counts": {
+      "CONTAINS": 136,
+      "CO_OCCURS_WITH": 1610,
+      "HAS_KEYWORD": 301,
+      "HAS_TOPIC": 79,
+      "MENTIONS_ENTITY": 260,
+      "NEXT": 21,
+      "SIMILAR_TO": 13
+    },
+    "meaningful_nodes": 492,
+    "coverage_score": 0.9,
+    "issues_count": 0,
+    "complexity_median": 13.0
+  },
+  "hotspots": [
+    {
+      "id": "chunk:HANDOFF.md:0009",
+      "file_path": "HANDOFF.md",
+      "label": "Repo Layout",
+      "references": 0,
+      "semantic_links": 15,
+      "total_links": 16
+    },
+    {
+      "id": "chunk:SNAPSHOTS.md:0001",
+      "file_path": "SNAPSHOTS.md",
+      "label": "New Package",
+      "references": 0,
+      "semantic_links": 15,
+      "total_links": 15
+    },
+    {
+      "id": "chunk:HANDOFF.md:0004",
+      "file_path": "HANDOFF.md",
+      "label": "Completed",
+      "references": 0,
+      "semantic_links": 14,
+      "total_links": 14
+    },
+    {
+      "id": "chunk:HANDOFF.md:0005",
+      "file_path": "HANDOFF.md",
+      "label": "Not Done / Known Gaps",
+      "references": 0,
+      "semantic_links": 13,
+      "total_links": 14
+    },
+    {
+      "id": "chunk:HANDOFF.md:0017",
+      "file_path": "HANDOFF.md",
+      "label": "Next Steps (Recommended)",
+      "references": 0,
+      "semantic_links": 13,
+      "total_links": 14
+    },
+    {
+      "id": "chunk:README.md:0000",
+      "file_path": "README.md",
+      "label": "chunk:0001",
+      "references": 0,
+      "semantic_links": 13,
+      "total_links": 14
+    },
+    {
+      "id": "chunk:README.md:0004",
+      "file_path": "README.md",
+      "label": "What's Inside",
+      "references": 0,
+      "semantic_links": 13,
+      "total_links": 14
+    },
+    {
+      "id": "chunk:README.md:0029",
+      "file_path": "README.md",
+      "label": "Project Structure",
+      "references": 0,
+      "semantic_links": 13,
+      "total_links": 14
+    },
+    {
+      "id": "chunk:CHANGELOG.md:0001",
+      "file_path": "CHANGELOG.md",
+      "label": "Added",
+      "references": 0,
+      "semantic_links": 13,
+      "total_links": 13
+    },
+    {
+      "id": "chunk:CHANGELOG.md:0003",
+      "file_path": "CHANGELOG.md",
+      "label": "Added",
+      "references": 0,
+      "semantic_links": 13,
+      "total_links": 13
+    }
+  ],
+  "issues": [],
+  "vs_previous": null,
+  "vs_baseline": {
+    "nodes": 0,
+    "edges": 0,
+    "coverage_delta": 0.0,
+    "issues_delta": 0
+  }
+}

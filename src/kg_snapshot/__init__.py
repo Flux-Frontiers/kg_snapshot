@@ -12,4 +12,6 @@ Domain KG packages (code-kg, doc-kg, etc.) import from here and subclass
 
 from kg_snapshot.snapshots import Snapshot, SnapshotManager, SnapshotManifest
 
+__version__ = "0.2.0"
+
 __all__ = ["Snapshot", "SnapshotManifest", "SnapshotManager"]

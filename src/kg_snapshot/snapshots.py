@@ -243,14 +243,23 @@ class SnapshotManager:
 
         return snapshot
 
-    def save_snapshot(self, snapshot: Snapshot) -> Path:
+    def save_snapshot(self, snapshot: Snapshot, *, force: bool = False) -> Path | None:
         """Persist a snapshot to disk and update the manifest.
 
         Rejects snapshots with zero ``total_nodes`` to protect against
         saving degenerate (unbuilt) state.
 
+        If ``version`` and ``metrics`` are unchanged from the latest snapshot,
+        the existing entry is refreshed in-place (tree hash, timestamp, and
+        branch updated; old JSON file replaced) rather than creating a new
+        history entry.  Pass ``force=True`` to always create a new entry.
+
         :param snapshot: Snapshot to save.
-        :return: Path to the saved JSON file.
+        :param force: If ``True``, always write a new history entry even when
+            metrics and version are unchanged.
+        :return: Path to the saved JSON file, or ``None`` if the snapshot was
+            a no-op refresh and no file needed writing (same tree hash as the
+            entry being refreshed).
         :raises ValueError: If ``total_nodes`` is 0.
         """
         m = snapshot.metrics
@@ -263,10 +272,43 @@ class SnapshotManager:
                 "Build the KG before capturing a snapshot."
             )
 
+        manifest = self.load_manifest()
+
+        # ------------------------------------------------------------------
+        # Dedup: if nothing meaningful changed, refresh the latest entry
+        # rather than appending a new history entry.
+        # ------------------------------------------------------------------
+        if not force and manifest.snapshots:
+            latest_entry = max(manifest.snapshots, key=lambda x: x.get("timestamp", ""))
+            if snapshot.version == latest_entry.get("version", "") and not self._metrics_changed(
+                snapshot.metrics, latest_entry.get("metrics", {})
+            ):
+                old_key = latest_entry["key"]
+                old_file = self.snapshots_dir / latest_entry.get("file", f"{old_key}.json")
+
+                snapshot_file = self.snapshots_dir / f"{snapshot.key}.json"
+                snapshot_file.write_text(
+                    json.dumps(snapshot.to_dict(), indent=2) + "\n", encoding="utf-8"
+                )
+
+                if old_key != snapshot.key and old_file.exists():
+                    old_file.unlink()
+
+                latest_entry["key"] = snapshot.key
+                latest_entry["branch"] = snapshot.branch
+                latest_entry["timestamp"] = snapshot.timestamp
+                latest_entry["file"] = snapshot_file.name
+
+                manifest.last_update = datetime.now(UTC).isoformat()
+                self._save_manifest(manifest)
+                return snapshot_file
+
+        # ------------------------------------------------------------------
+        # Normal path: new or changed snapshot.
+        # ------------------------------------------------------------------
         snapshot_file = self.snapshots_dir / f"{snapshot.key}.json"
         snapshot_file.write_text(json.dumps(snapshot.to_dict(), indent=2) + "\n", encoding="utf-8")
 
-        manifest = self.load_manifest()
         existing_idx = next(
             (i for i, s in enumerate(manifest.snapshots) if s.get("key") == snapshot.key),
             None,
@@ -453,6 +495,18 @@ class SnapshotManager:
     # ------------------------------------------------------------------
     # Delta computation — override for domain-specific delta fields
     # ------------------------------------------------------------------
+
+    def _metrics_changed(self, new_metrics: dict[str, Any], old_metrics: dict[str, Any]) -> bool:
+        """Return ``True`` if metrics represent a meaningful change worth recording.
+
+        Override in subclasses to customise — e.g. ignore minor coverage drift
+        or only react to node/edge count changes.
+
+        :param new_metrics: Metrics from the new snapshot.
+        :param old_metrics: Metrics from the previous latest snapshot.
+        :return: ``True`` if a new history entry should be written.
+        """
+        return new_metrics != old_metrics
 
     def _compute_delta(self, snap_new: Snapshot, snap_old: Snapshot) -> dict[str, Any]:
         """Compute metrics delta (new - old).
