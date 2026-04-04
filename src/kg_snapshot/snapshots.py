@@ -115,6 +115,28 @@ class Snapshot:
 
 
 @dataclass
+class PruneResult:
+    """Summary of a :meth:`SnapshotManager.prune_snapshots` operation.
+
+    :param removed: Keys of snapshots pruned as metric-duplicates.
+    :param orphaned_files: Filenames of JSON files deleted from disk because
+        they were not referenced by the manifest.
+    :param broken_entries: Keys of manifest entries whose JSON file was missing.
+    :param dry_run: ``True`` when the call was a dry run (nothing deleted).
+    """
+
+    removed: list[str]
+    orphaned_files: list[str]
+    broken_entries: list[str]
+    dry_run: bool
+
+    @property
+    def total_cleaned(self) -> int:
+        """Total number of items removed (or that *would* be removed in dry-run)."""
+        return len(self.removed) + len(self.orphaned_files) + len(self.broken_entries)
+
+
+@dataclass
 class SnapshotManifest:
     """Index of all snapshots, with fast lookup by tree hash."""
 
@@ -537,6 +559,98 @@ class SnapshotManager:
             "nodes": new_m.get("total_nodes", 0) - old_m.get("total_nodes", 0),
             "edges": new_m.get("total_edges", 0) - old_m.get("total_edges", 0),
         }
+
+    # ------------------------------------------------------------------
+    # Prune
+    # ------------------------------------------------------------------
+
+    def prune_snapshots(self, *, dry_run: bool = False) -> PruneResult:
+        """Remove vestigial snapshots that carry no new metric information.
+
+        Identifies three categories of junk and optionally deletes them:
+
+        1. **Metric-duplicates** — interior snapshots whose metrics are
+           unchanged from the previous kept entry according to
+           :meth:`_metrics_changed`.  The oldest (baseline) and newest
+           (latest) entries are always preserved.
+        2. **Broken manifest entries** — entries in ``manifest.json`` whose
+           ``.json`` file no longer exists on disk.
+        3. **Orphaned JSON files** — ``.json`` files in the snapshot directory
+           that are not referenced by any manifest entry.
+
+        :param dry_run: If ``True``, compute and return what would be removed
+            without deleting anything.
+        :return: :class:`PruneResult` summarising the cleanup.
+        """
+        manifest = self.load_manifest()
+        by_time = sorted(manifest.snapshots, key=lambda x: x.get("timestamp", ""))
+
+        removed_keys: list[str] = []
+        broken_keys: list[str] = []
+        orphaned_files: list[str] = []
+
+        # Pass 1: separate valid entries from broken ones (missing JSON file).
+        valid: list[dict[str, Any]] = []
+        for entry in by_time:
+            key = entry.get("key", "")
+            fname = entry.get("file", f"{key}.json")
+            if not (self.snapshots_dir / fname).exists():
+                broken_keys.append(key)
+            else:
+                valid.append(entry)
+
+        # Pass 2: among valid entries, flag metric-duplicate interior entries.
+        if len(valid) > 2:
+            kept_metrics = valid[0].get("metrics", {})  # baseline metrics
+            for entry in valid[1:-1]:  # interior entries only
+                m = entry.get("metrics", {})
+                if not self._metrics_changed(m, kept_metrics):
+                    removed_keys.append(entry.get("key", ""))
+                else:
+                    kept_metrics = m
+
+        # Pass 3: find orphaned JSON files (on disk, not in any manifest entry).
+        referenced_files = {
+            e.get("file", f"{e.get('key', '')}.json") for e in manifest.snapshots
+        }
+        for path in self.snapshots_dir.glob("*.json"):
+            if path.name == "manifest.json":
+                continue
+            if path.name not in referenced_files:
+                orphaned_files.append(path.name)
+
+        if not dry_run:
+            # Build lookup: key → manifest entry (for filename resolution).
+            entry_by_key = {e.get("key"): e for e in manifest.snapshots}
+
+            # Delete JSON files for metric-duplicates.
+            for key in removed_keys:
+                entry = entry_by_key.get(key, {})
+                fname = entry.get("file", f"{key}.json")
+                p = self.snapshots_dir / fname
+                if p.exists():
+                    p.unlink()
+
+            # Delete orphaned JSON files.
+            for fname in orphaned_files:
+                p = self.snapshots_dir / fname
+                if p.exists():
+                    p.unlink()
+
+            # Rewrite manifest without removed and broken entries.
+            drop_keys = set(removed_keys) | set(broken_keys)
+            manifest.snapshots = [
+                e for e in manifest.snapshots if e.get("key") not in drop_keys
+            ]
+            manifest.last_update = datetime.now(UTC).isoformat()
+            self._save_manifest(manifest)
+
+        return PruneResult(
+            removed=removed_keys,
+            orphaned_files=orphaned_files,
+            broken_entries=broken_keys,
+            dry_run=dry_run,
+        )
 
     # ------------------------------------------------------------------
     # Git helpers

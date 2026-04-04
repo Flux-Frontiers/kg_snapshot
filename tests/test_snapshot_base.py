@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from kg_snapshot import Snapshot, SnapshotManager, SnapshotManifest
+from kg_snapshot import PruneResult, Snapshot, SnapshotManager, SnapshotManifest
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -425,6 +425,153 @@ def test_git_helpers_return_strings(snap_dir: Path) -> None:
     tree_hash = mgr._get_current_tree_hash()
     assert isinstance(branch, str) and len(branch) > 0
     assert isinstance(tree_hash, str) and len(tree_hash) > 0
+
+
+# ---------------------------------------------------------------------------
+# SnapshotManager — prune_snapshots
+# ---------------------------------------------------------------------------
+
+
+def _make_snap(mgr: SnapshotManager, tree_hash: str, nodes: int, version: str = "1.0.0") -> None:
+    """Helper: capture + save a snapshot with controlled inputs."""
+    with (
+        patch.object(SnapshotManager, "_get_current_branch", return_value="main"),
+        patch.object(SnapshotManager, "_get_current_tree_hash", return_value=tree_hash),
+    ):
+        mgr.save_snapshot(
+            mgr.capture(
+                version=version,
+                graph_stats_dict={"total_nodes": nodes, "total_edges": nodes},
+            ),
+            force=True,  # bypass dedup so we can test prune explicitly
+        )
+
+
+def test_prune_removes_metric_duplicates(mgr: SnapshotManager, snap_dir: Path) -> None:
+    """Interior snapshots with unchanged metrics are pruned; baseline and latest kept."""
+    _make_snap(mgr, "h1", 100)
+    _make_snap(mgr, "h2", 100)  # same as h1 — duplicate
+    _make_snap(mgr, "h3", 100)  # same — duplicate
+    _make_snap(mgr, "h4", 110)  # changed — keep
+    _make_snap(mgr, "h5", 110)  # same as h4 — latest, keep
+
+    result = mgr.prune_snapshots()
+
+    assert set(result.removed) == {"h2", "h3"}
+    assert result.broken_entries == []
+    assert result.orphaned_files == []
+    assert not result.dry_run
+
+    manifest = mgr.load_manifest()
+    surviving_keys = {e["key"] for e in manifest.snapshots}
+    assert surviving_keys == {"h1", "h4", "h5"}
+    assert not (snap_dir / "h2.json").exists()
+    assert not (snap_dir / "h3.json").exists()
+
+
+def test_prune_always_keeps_baseline_and_latest(mgr: SnapshotManager) -> None:
+    """Even when baseline == latest metrics, both ends are preserved."""
+    _make_snap(mgr, "h1", 100)
+    _make_snap(mgr, "h2", 100)
+
+    result = mgr.prune_snapshots()
+
+    assert result.removed == []
+    assert len(mgr.load_manifest().snapshots) == 2
+
+
+def test_prune_removes_broken_manifest_entries(mgr: SnapshotManager, snap_dir: Path) -> None:
+    """Manifest entries whose JSON file is missing are removed."""
+    _make_snap(mgr, "h1", 100)
+    _make_snap(mgr, "h2", 110)
+
+    # Manually delete h2's JSON to simulate a broken entry.
+    (snap_dir / "h2.json").unlink()
+
+    result = mgr.prune_snapshots()
+
+    assert "h2" in result.broken_entries
+    surviving_keys = {e["key"] for e in mgr.load_manifest().snapshots}
+    assert "h2" not in surviving_keys
+
+
+def test_prune_removes_orphaned_json_files(mgr: SnapshotManager, snap_dir: Path) -> None:
+    """JSON files on disk that are not in the manifest are deleted."""
+    _make_snap(mgr, "h1", 100)
+
+    orphan = snap_dir / "orphan_abc123.json"
+    orphan.write_text('{"key": "orphan_abc123"}', encoding="utf-8")
+
+    result = mgr.prune_snapshots()
+
+    assert "orphan_abc123.json" in result.orphaned_files
+    assert not orphan.exists()
+
+
+def test_prune_dry_run_deletes_nothing(mgr: SnapshotManager, snap_dir: Path) -> None:
+    """dry_run=True reports findings but leaves everything intact."""
+    _make_snap(mgr, "h1", 100)
+    _make_snap(mgr, "h2", 100)  # duplicate
+    _make_snap(mgr, "h3", 110)
+
+    orphan = snap_dir / "ghost.json"
+    orphan.write_text("{}", encoding="utf-8")
+
+    result = mgr.prune_snapshots(dry_run=True)
+
+    assert result.dry_run is True
+    assert "h2" in result.removed
+    assert "ghost.json" in result.orphaned_files
+    # Nothing actually deleted
+    assert (snap_dir / "h2.json").exists()
+    assert orphan.exists()
+    assert len(mgr.load_manifest().snapshots) == 3
+
+
+def test_prune_total_cleaned(mgr: SnapshotManager, snap_dir: Path) -> None:
+    """total_cleaned sums all three removal categories."""
+    _make_snap(mgr, "h1", 100)
+    _make_snap(mgr, "h2", 100)  # duplicate
+    _make_snap(mgr, "h3", 110)
+    (snap_dir / "h3.json").unlink()  # make h3 broken
+    (snap_dir / "stray.json").write_text("{}", encoding="utf-8")  # orphan
+
+    result = mgr.prune_snapshots(dry_run=True)
+
+    assert result.total_cleaned == len(result.removed) + len(result.broken_entries) + len(result.orphaned_files)
+
+
+def test_prune_noop_with_few_snapshots(mgr: SnapshotManager) -> None:
+    """Prune is a no-op when only one snapshot exists."""
+    _make_snap(mgr, "h1", 100)
+
+    result = mgr.prune_snapshots()
+
+    assert result.removed == []
+    assert result.broken_entries == []
+    assert result.orphaned_files == []
+    assert result.total_cleaned == 0
+
+
+def test_prune_respects_metrics_changed_override(snap_dir: Path) -> None:
+    """Subclass _metrics_changed threshold is honoured during pruning."""
+
+    class ThresholdManager(SnapshotManager):
+        def _metrics_changed(self, new: dict, old: dict) -> bool:
+            return abs(new.get("total_nodes", 0) - old.get("total_nodes", 0)) > 5
+
+    tmgr = ThresholdManager(snap_dir / "threshold", package_name="kg-snapshot")
+
+    _make_snap(tmgr, "h1", 100)
+    _make_snap(tmgr, "h2", 103)  # delta=3, below threshold → duplicate
+    _make_snap(tmgr, "h3", 120)  # delta=17, above threshold → keep
+    _make_snap(tmgr, "h4", 122)  # delta=2, below threshold but latest → keep
+
+    result = tmgr.prune_snapshots()
+
+    assert set(result.removed) == {"h2"}
+    surviving = {e["key"] for e in tmgr.load_manifest().snapshots}
+    assert surviving == {"h1", "h3", "h4"}
 
 
 # ---------------------------------------------------------------------------

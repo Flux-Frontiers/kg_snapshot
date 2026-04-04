@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-04
+
+### Added
+- `SnapshotManager.prune_snapshots(dry_run=False)` — intelligent cleanup command that sweeps vestigial snapshots in three passes: (1) metric-duplicate interior entries (unchanged vs. prior kept entry per `_metrics_changed`), (2) broken manifest entries with missing JSON files, (3) orphaned JSON files on disk not referenced by the manifest. Baseline and latest entries are always preserved. Returns `PruneResult` with categorised removal lists and a `total_cleaned` property.
+- `PruneResult` dataclass (`removed`, `orphaned_files`, `broken_entries`, `dry_run`, `total_cleaned`) exported from public API.
+- 8 new tests covering all prune scenarios: metric-duplicate removal, baseline/latest protection, broken entry removal, orphaned file removal, dry-run no-op, `total_cleaned` accounting, single-snapshot no-op, and `_metrics_changed` override respect.
+
 ## [0.2.0] - 2026-04-03
 
 ### Added
